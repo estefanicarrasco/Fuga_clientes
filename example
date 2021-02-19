@@ -1,0 +1,344 @@
+
+##title: "Analisis del problema de la fuga de clientes"
+
+
+library(ggplot2) 
+library(esquisse)
+library(pacman)
+p_load(dplyr,ggplot2)
+library(colourpicker)
+library(plotly)
+library(ROSE)
+library(party)
+library(caTools)
+library(smbinning)
+library(pROC)
+library(ROCR)
+library(party)
+library(rpart)
+library(rpart.plot)
+
+
+
+## Cargando los datos con la funcion read.csv
+Data <- read.csv("DataChurn.csv",sep=",")
+#View(Data) # Ver es dataset
+
+
+## **Definición del problema**
+Incremento de la tasa de fuga de clientes dentro de la coyuntura del covid- 19
+
+## **Objetivo del problema**
+Saber dimensionar y bajar el ratio de fuga de los clientes.
+
+
+## **Tipo de variables**
+
+Data$SEXO <- as.factor(Data$SEXO)
+Data$CHURN <- as.factor(Data$CHURN)
+Data$CIVIL <- as.factor(Data$CIVIL)
+Data$AUTO <- as.factor(Data$AUTO)
+
+
+
+
+str(Data)
+
+
+**Variable cuantitativa:**
+
+* Discreta: EDAD, HIJOS
+* Continua: INGRESO
+
+**Variable cualitativa:**
+
+* Nominal: SEXO, CIVIL, AUTO, CHURN
+
+
+## **Análisis de gráficos multivariados**
+
+
+**Variable Sexo**
+
+* A nivel exploratorio, se observa que el género femenino representa el mayor porcentaje de fuga
+
+
+
+ggplot(Data) + aes(SEXO, fill = CHURN) + 
+  geom_bar(color="black", position = "fill") + scale_fill_manual(values = c("pink", "turquoise4"))+
+  labs(title = "Proporción", x = "SEXO", y = "Frecuencia", aes(label = ..count..),
+       stat = "count", vjust = 1.5,
+       colour = "white") + guides(fill=guide_legend(title="CHURN")) + coord_flip()
+
+
+
+**Variable Estado Civil**
+
+* Observamos que la variable estado civil no tiene relación con la variable FUGA.
+
+
+ggplot(Data) + aes(CIVIL, fill = CHURN) + 
+  geom_bar(color="black", position = "fill") + scale_fill_manual(values = c("tomato", "grey78")) +
+  labs(title = "Relación ESTADO CIVIL con la variable Fuga", x = "ESTADO CIVIL", y = "Porcentual", aes(label = ..count..),
+       stat = "count", vjust = 1.5,
+       colour = "white") + guides(fill=guide_legend(title="CHURN")) + coord_flip()
+
+
+
+
+**Variable Edad**
+
+* La forma de distribución de la variable edad no muestra una visión clara de la relación con la fuga de los clientes, es por ello que se decidió transformar la variable.
+
+
+
+ggplot(Data, aes(EDAD, fill=factor(CHURN))) + 
+  geom_histogram(alpha=0.5,color="black") +
+  facet_grid(CHURN ~.)  +   #  filas ~ columnas
+  theme(legend.position="none") + scale_fill_manual(values = c("red4", "seagreen"))+
+  labs(title ="Relación Edad con la Frecuencia de Fuga", 
+       x="Fuga",
+       y="Frecuencia")
+
+**Transformación de variable Edad**
+
+* Al categorizar la variable EDAD, obtenemos una mejor visibilidad del patrón de fuga en relación con la edad del cliente
+
+set.seed(123)
+arbol <- rpart(CHURN ~ EDAD , # Y ~ X 
+               data=Data,
+               method="class", 
+               control=rpart.control(cp=0,minbucket=0)
+)
+
+
+#windows()
+rpart.plot(arbol, 
+           digits=-1,
+           type=2, 
+           extra=101,
+           varlen = 3,
+           cex = 0.7, 
+           nn=TRUE)
+summary(Data$EDAD)
+
+# Menos de 40
+# De 40 a mas
+
+Data$edad_1 <- cut(Data$EDAD, 
+                        breaks = c(-Inf,40,Inf),
+                        labels = c("Menor a 40","Mas de 40"),
+                        right = FALSE)
+
+
+Se visualiza que los puntos de cortes son:  
+
+* Menores a 40 años  
+* Mayores a 40 años
+
+
+ggplot(Data, aes(edad_1)) + 
+  geom_bar(color="dark green",fill="seagreen4") + 
+  theme_light() + 
+  labs(title ="Categorización por variable Edad", 
+       x="EDAD", 
+       y= "Frecuencia") 
+
+
+* A nivel exploratorio, se observa que los mayores a 40 años representa el mayor porcentaje de fuga
+
+
+
+ggplot(Data) + aes(edad_1, fill = CHURN) + 
+  geom_bar(color="black", position = "fill") + scale_fill_manual(values = c("dark salmon", "seagreen")) +
+  labs(title = "Relación Edad con la variable Fuga", x = "EDAD", y = "Porcentual", aes(label = ..count..),
+       stat = "count", vjust = 1.5,
+       colour = "white") + guides(fill=guide_legend(title="CHURN")) + coord_flip() 
+
+**Variable Auto**
+
+* Observamos que la variable AUTO no tiene relación con la variable FUGA.
+
+
+ggplot(Data) + aes(AUTO, fill = CHURN) + 
+  geom_bar(color="black", position = "fill") + scale_fill_manual(values = c("indianred1", "lightskyblue3")) +
+  labs(title = "Relación AUTO con la variable Fuga", x = "AUTO", y = "Porcentual", aes(label = ..count..),
+       stat = "count", vjust = 1.5,
+       colour = "white") + guides(fill=guide_legend(title="CHURN")) + coord_flip()
+
+**Variable Ingreso**
+
+* La forma de distribución de la variable Ingreso no muestra una visión clara de la relación con la fuga de los clientes, es por ello que se decidió transformar la variable.
+
+
+
+ggplot(Data, aes(INGRESO, fill=factor(CHURN))) + 
+  geom_histogram(alpha=0.5,color="black") +
+  facet_grid(CHURN ~.)  +   #  filas ~ columnas
+  theme(legend.position="none") + scale_fill_manual(values = c("red4", "seagreen"))   + labs(title ="Relación INGRESO con la Variable Fuga", 
+       x="INGRESO",
+       y="Frecuencia")
+
+**Transformación de variable Ingreso**
+
+Al categorizar la variable Ingreso, obtenemos una mejor visibilidad del patrón de fuga en relación con el ingreso del cliente
+
+```{r include=FALSE, echo = FALSE, warning = FALSE, message = FALSE}
+
+set.seed(123)
+arbol <- rpart(CHURN ~ INGRESO , # Y ~ X 
+               data=Data,
+               method="class", 
+               control=rpart.control(cp=0,minbucket=0)
+)
+
+library(rpart.plot)
+#windows()
+rpart.plot(arbol, 
+           digits=-1,
+           type=2, 
+           extra=101,
+           varlen = 3,
+           cex = 0.7, 
+           nn=TRUE)
+
+
+
+Se visualiza que los puntos de cortes son:  
+
+* Menores a 27842.1 años  
+* Mayores a De 27842.1 años
+
+
+Data$INGRESO_1 <- cut(Data$INGRESO, 
+                   breaks = c(-Inf,27842.1,Inf),
+                   labels = c("Menos de 27842.1","De 27842.1 a mas"),
+                   right = FALSE)
+
+#table(Data$INGRESO_1)  
+
+ggplot(Data, aes(INGRESO_1)) + 
+  geom_bar(color="black",fill="seagreen") + 
+  theme_light() + 
+  labs(title ="Categorizacion por variable Ingreso", 
+       x="INGRESO", 
+       y= "Frecuencia") 
+
+* A nivel exploratorio, se observa que aquellos clientes que tienen ingresos menores a 27842.1 representa el mayor porcentaje de fuga
+
+
+
+ggplot(Data) + aes(INGRESO_1, fill = CHURN) + 
+  geom_bar(color="black", position = "fill") + scale_fill_manual(values = c("dark salmon", "seagreen")) +
+  labs(title = "Relación Ingreso con la variable Fuga", x = "INGRESO", y = "Porcentual", aes(label = ..count..),
+       stat = "count", vjust = 1.5,
+       colour = "white") + guides(fill=guide_legend(title="CHURN")) + coord_flip()
+
+
+**Variable Hijos**
+
+* Observamos que la variable HIJOS no tiene relación con la variable FUGA.
+
+ggplot(Data, aes(factor(CHURN), fill=HIJOS)) + 
+  geom_bar(alpha=0.5,color="azure4") +
+  facet_grid(HIJOS ~.)  +   #  filas ~ columnas
+  theme(legend.position="none") + 
+  labs(title ="Relación HIJOS con la variable Fuga", 
+       x="Fuga",
+       y="Frecuencia")
+
+
+## **Prueba de Hipótesis**
+
+* A partir del análisis exploratorio realizado se observaron ciertas relaciones que se podrán confirmar a través del análisis de hipótesis respectivo.
+
+**Variable Sexo**
+Se uso la prueba chi-cuadrado: p<0.05
+
+tabla <- table(Data$SEXO ,Data$CHURN)
+chisq.test(tabla) 
+
+
+**Variable Ingreso**  
+Se uso la prueba poliserial:  
+
+* Encontrandose con una asociacion baja 0.0802792.  
+* Se decidió usar la variable transformada del análisis exploratorio.
+
+
+library(CTT)
+polyserial(Data$INGRESO, Data$CHURN, ml = F)
+
+
+* Con una prueba chi-cuadrado a la variable transformada se encontro que p<0.05
+
+
+tabla <- table(Data$INGRESO_1 ,Data$CHURN)
+chisq.test(tabla) 
+
+
+**Variable EDAD**  
+Se uso la prueba poliserial:  
+* Encontrandose con una asociacion negativa baja -0.07  
+* Se decidió usar la variable transformada del análisis exploratorio.
+
+
+library(CTT)
+polyserial(Data$EDAD, Data$CHURN, ml = F)
+
+
+* Con una prueba chi-cuadrado a la variable transformada se encontro que p<0.05
+
+
+tabla <- table(Data$edad_1 ,Data$CHURN)
+chisq.test(tabla)
+
+
+**Variable Estado Civil**
+* Con una prueba chi-cuadrado a la variable transformada se encontro que p>0.05
+
+tabla <- table(Data$CIVIL ,Data$CHURN)
+chisq.test(tabla)
+
+
+**Variable Hijos**
+* Con una prueba chi-cuadrado a la variable transformada se encontro que p>0.05
+
+
+tabla <- table(Data$HIJOS ,Data$CHURN)
+chisq.test(tabla)
+
+
+**Variable AUTO**
+* Con una prueba chi-cuadrado a la variable transformada se encontro que p>0.05
+
+tabla <- table(Data$AUTO ,Data$CHURN)
+chisq.test(tabla)
+
+
+
+**Resumen**
+
+* Observamos que con la prueba de chi - cuadrado las variables Ingreso, Sexo y edad tiene un p-value < 0.05. Por lo que se rechaza la hipótesis nula que indica que no hay asociación y se acepta la hipótesis alternativa que considera hay asociación.
+
+* Observamos que con la prueba de chi - cuadrado las variables Civil, hijos y auto tiene un p-value > 0.05. Por lo que se acepta la hipótesis nula que indica que no hay asociación.
+
+## **Conclusiones**
+
+* Identificamos que hay una relación comprobada entre las variables SEXO, Ingreso y EDAD con respecto a la variable CHURN.
+
+* Evaluando la Variable SEXO: Las mujeres son mas propensas a fugar. 
+
+* Evaluando la variable Ingreso: Los clientes que tienen ingresos menores a 27842.1 son propensos a fugar.
+
+* Evaluando la variable EDAD: Los clientes mayores de 40 años son propensos a fugar.
+
+
+## **Recomendaciones**
+
+* Se recomienda mejorar las políticas de atencion a la mujeres a fin de reternelas.
+
+* En el caso de clientes con ingresos a menores a 27842.1 recomendamos ofrecerles un producto económico que cubra sus necesidades.
+
+* En el caso de los clientes mayores a 40 años (que tienen mayor cantidad de ingreso), podríamos ofrecerles productos con mayores beneficios que sastifagan sus necesidades.
+
